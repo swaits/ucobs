@@ -1,0 +1,21 @@
+[package]
+name = "ucobs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "μCOBS — Consistent Overhead Byte Stuffing. no_std, zero-alloc, fastest, most-tested COBS implementation."
+authors = ["Stephen Waits <steve@waits.net>"]
+repository = "https://github.com/swaits/ucobs"
+homepage = "https://github.com/swaits/ucobs"
+documentation = "https://docs.rs/ucobs"
+readme = "README.md"
+keywords = ["cobs", "framing", "no-std", "embedded", "codec"]
+categories = ["encoding", "no-std::no-alloc", "embedded"]
+
+[features]
+default = []
+
+[dev-dependencies]
+corncobs = "0.1"
+proptest = "1"
+rand = "0.8"
