@@ -2,6 +2,7 @@
 name = "ucobs"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.56"
 license = "MIT"
 description = "μCOBS — Consistent Overhead Byte Stuffing. no_std, zero-alloc, fastest, most-tested COBS implementation."
 authors = ["Stephen Waits <steve@waits.net>"]
@@ -15,7 +16,19 @@ categories = ["encoding", "no-std::no-alloc", "embedded"]
 [features]
 default = []
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[package.metadata.docs.rs]
+all-features = true
+
 [dev-dependencies]
+cobs = "0.3"
 corncobs = "0.1"
+criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1"
 rand = "0.8"
+
+[[bench]]
+name = "bench"
+harness = false

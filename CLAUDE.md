@@ -12,7 +12,7 @@
 2. **Interoperable** — proven byte-for-byte compatibility with `corncobs`, `cobs` crates and Python `cobs` packages.
 3. **Insanely tested** — canonical vectors, property-based tests (proptest), fuzz targets (cargo-fuzz), cross-crate interop, randomized payloads. If you think testing is done, you're 10% done.
 4. **Fast** — benchmark against every competing implementation. Must be at least as fast, ideally fastest. Benchmarks are CI-enforced.
-5. **Tiny** — `no_std`, zero-alloc, zero runtime dependencies. ~140 lines of implementation. Runs on 8-bit MCUs and servers alike.
+5. **Tiny** — `no_std`, zero-alloc, zero runtime dependencies. ~120 lines of implementation. Runs on 8-bit MCUs and servers alike.
 6. **Trustworthy** — small enough to audit by hand. No unsafe. No panics in release. Fuzz-hardened.
 
 ## Architecture
