@@ -81,7 +81,7 @@ All three crates are tiny. The difference is negligible for any target.
 [^1]: Requires disabling the default `std` feature.
 [^2]: `alloc` is enabled by default via the `std` feature.
 
-> Measured on Intel N100, Rust 1.93.1, Linux 6.12. Run `cargo bench` to
+> Measured on Intel N100, Rust 1.93.1, Linux 6.12. Run `just bench` to
 > reproduce. Full Criterion reports are generated in `target/criterion/report/`.
 
 ## Usage
@@ -116,12 +116,13 @@ yourself when framing for transport.
 
 ```sh
 # Unit + property + interop tests
-cargo test
+just test-unit
 
-# Fuzz testing (requires nightly + cargo-fuzz)
-cd fuzz
-cargo +nightly fuzz run fuzz_decode -- -max_total_time=60
-cargo +nightly fuzz run fuzz_roundtrip -- -max_total_time=60
+# All quality gates (tests, clippy, fmt, doc, fuzz, miri)
+just test
+
+# Fuzz testing only (requires nightly + cargo-fuzz)
+just test-fuzz
 ```
 
 ## License
