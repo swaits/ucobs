@@ -15,6 +15,7 @@ categories = ["encoding", "no-std::no-alloc", "embedded"]
 
 [features]
 default = []
+legacy-msrv = []
 
 [lints.rust]
 unsafe_code = "forbid"

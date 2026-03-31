@@ -148,6 +148,28 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+/// Copy `src` into `dest[offset..]` in a const-compatible way.
+/// Default path uses `copy_from_slice` (Rust 1.93+, compiles to memcpy).
+/// With `legacy-msrv` feature, falls back to a manual loop for Rust 1.83+.
+#[inline(always)]
+#[cfg(not(feature = "legacy-msrv"))]
+const fn const_copy(dest: &mut [u8], offset: usize, src: &[u8]) {
+    let (_, tail) = dest.split_at_mut(offset);
+    let (chunk, _) = tail.split_at_mut(src.len());
+    chunk.copy_from_slice(src);
+}
+
+/// Fallback const copy for toolchains older than Rust 1.93.
+#[inline(always)]
+#[cfg(feature = "legacy-msrv")]
+const fn const_copy(dest: &mut [u8], offset: usize, src: &[u8]) {
+    let mut i = 0;
+    while i < src.len() {
+        dest[offset + i] = src[i];
+        i += 1;
+    }
+}
+
 /// COBS-encode `src` into `dest`.
 ///
 /// Returns the number of bytes written, or `None` if `dest` is too small.
@@ -223,10 +245,8 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
             if di + run > dest.len() {
                 return None;
             }
-            let (_, dest_tail) = dest.split_at_mut(di);
-            let (dest_chunk, _) = dest_tail.split_at_mut(run);
             let (src_chunk, _) = src_window.split_at(run);
-            dest_chunk.copy_from_slice(src_chunk);
+            const_copy(dest, di, src_chunk);
             di += run;
         }
         si += run;
