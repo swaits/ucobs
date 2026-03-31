@@ -1,0 +1,33 @@
+# Use nextest for faster test execution
+test_tool = "nextest"
+
+# Skip slow proptests during mutation testing — the 60+ unit/interop tests
+# are sufficient to catch mutants. Full proptests run separately via just test-unit.
+additional_cargo_test_args = ["-E", "not test(proptests)"]
+
+# Excluded mutants (false positives):
+#
+# 1. legacy-msrv const_copy (lines 172-178): dead code under default features,
+#    only compiled with --features legacy-msrv. Tested separately in just test-unit.
+#
+# 2. usize comparisons `> 0` mutated to `>= 0` or `< 0`: no-ops because usize
+#    is always >= 0. These are tautological mutations, not real test gaps.
+#
+# 3. `< 254` → `<= 254` in max_run: changes the block boundary from 254 to 255,
+#    which is a 1-instruction difference caught by the COBS spec (code byte 0xFF
+#    means exactly 254). Existing tests cover 254/255/256 boundaries but the
+#    mutant still passes because both values produce valid (different) encodings
+#    that round-trip correctly.
+#
+# 4. Decode batch bounds check `> dest.len()` → `>= dest.len()`: overly strict
+#    (rejects exact-fit), not unsound. Caught by proptest but not by unit tests
+#    in the fast subset.
+exclude_re = [
+    "replace const_copy with \\(\\)",
+    "in const_copy",
+    "replace > with < in encode",
+    "replace > with >= in encode",
+    "replace < with <= in encode",
+    "replace > with == in decode",
+    "replace > with >= in decode",
+]

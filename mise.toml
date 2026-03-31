@@ -1,0 +1,4 @@
+[tools]
+"cargo:cargo-nextest" = "latest"
+"cargo:cargo-mutants" = "latest"
+"cargo:iai-callgrind-runner" = "latest"

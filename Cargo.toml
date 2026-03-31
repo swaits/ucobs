@@ -1,6 +1,6 @@
 [package]
 name = "ucobs"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.93"
 license = "MIT"
@@ -26,7 +26,7 @@ all-features = true
 [dev-dependencies]
 cobs = "0.5"
 corncobs = "0.1"
-criterion = { version = "0.8", features = ["html_reports"] }
+iai-callgrind = "0.16"
 proptest = "1"
 rand = "0.10"
 

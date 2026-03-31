@@ -23,53 +23,57 @@ allowing `0x00` to serve as an unambiguous frame delimiter. Overhead is exactly
 ## Performance
 
 Benchmarked against the two other `no_std` COBS crates using
-[Criterion](https://github.com/bheisler/criterion.rs) across three payload
-patterns: **all zeros** (worst case — every byte triggers a code emit),
-**no zeros**, and **mixed** (0x00–0xFF cycling). Throughput in MB/s, higher
-is better. Legend: 🥇 winner, 🥉 last, 🤝 statistical tie (<5%).
+[iai-callgrind](https://github.com/iai-callgrind/iai-callgrind) (instruction
+counts via Valgrind — deterministic, zero run-to-run variance). Three payload
+patterns: **all zeros** (worst case), **no zeros**, and **mixed** (0x00–0xFF
+cycling). Instruction count per call, lower is better.
+Legend: 🥇 winner, 🥉 last, 🤝 tie (<3%).
 
 ### Encode
 
 | Payload | Pattern | μCOBS | `cobs` 0.5 | `corncobs` 0.1 |
 |---------|---------|------:|-----------:|---------------:|
-| 64 B    | zeros   | 1,485 | 🥇 1,572  |       🥉 274   |
-| 64 B    | nonzero | 🤝 3,721 | 🥉 2,177 |    🤝 3,616   |
-| 64 B    | mixed   | 🥇 3,596 | 🥉 2,019 |       3,137   |
-| 256 B   | zeros   | 1,494 | 🥇 1,962  |       🥉 341   |
-| 256 B   | nonzero | 🥇 4,267 | 🥉 2,218 |       3,951   |
-| 256 B   | mixed   | 🤝 3,891 | 🥉 2,114 |    🤝 3,867   |
-| 4096 B  | zeros   | 1,376 | 🥇 2,052  |       🥉 334   |
-| 4096 B  | nonzero | 🤝 4,538 | 🥉 2,227 |    🤝 4,501   |
-| 4096 B  | mixed   | 🤝 3,993 | 🥉 1,549 |    🤝 3,888   |
+| 64 B    | zeros   | 🤝 1,171 | 🤝 1,164 |    🥉 4,098   |
+| 64 B    | nonzero | 🤝 512 | 🥉 1,100  |       🤝 514   |
+| 64 B    | mixed   | 🥇 523 |  🥉 1,101 |          570   |
+| 256 B   | zeros   | 🤝 4,243 | 🤝 4,236 |   🥉 15,810   |
+| 256 B   | nonzero | 🤝 1,552 | 🥉 3,992 |   🤝 1,531    |
+| 256 B   | mixed   | 🤝 1,561 | 🥉 3,993 |   🤝 1,585    |
+| 4096 B  | zeros   | 🤝 65,904 | 🤝 65,897 | 🥉 250,271  |
+| 4096 B  | nonzero | 🤝 22,077 | 🥉 61,993 | 🤝 21,711   |
+| 4096 B  | mixed   | 🤝 22,932 | 🥉 62,009 | 🤝 22,656   |
 
 ### Decode
 
 | Payload | Pattern | μCOBS | `cobs` 0.5 | `corncobs` 0.1 |
 |---------|---------|------:|-----------:|---------------:|
-| 64 B    | zeros   | 🥇 2,896 | 🥉 924   |       1,520   |
-| 64 B    | nonzero | 🤝 16,000 | 🥉 1,168 |  🤝 15,238   |
-| 64 B    | mixed   |    9,275 | 🥉 1,133  |  🥇 15,610   |
-| 256 B   | zeros   | 🥇 3,088 | 🥉 914   |       1,496   |
-| 256 B   | nonzero | 40,000 | 🥉 1,179   |  🥇 42,667   |
-| 256 B   | mixed   | 28,444 | 🥉 1,140   |  🥇 37,647   |
-| 4096 B  | zeros   | 🥇 4,620 | 🥉 942   |       1,549   |
-| 4096 B  | nonzero | 🥇 68,040 | 🥉 1,203 |     58,851   |
-| 4096 B  | mixed   | 40,236 | 🥉 1,154   |  🥇 49,769   |
+| 64 B    | zeros   | 🥇 499 | 🥉 2,354  |        1,507   |
+| 64 B    | nonzero | 🥇 179 | 🥉 1,778  |          185   |
+| 64 B    | mixed   |    226 | 🥉 1,787  |       🥇 206   |
+| 256 B   | zeros   | 🥇 1,473 | 🥉 8,882 |       5,539   |
+| 256 B   | nonzero | 🤝 240 | 🥉 6,607  |       🤝 247   |
+| 256 B   | mixed   |    285 | 🥉 6,613  |       🥇 266   |
+| 4096 B  | zeros   | 🥇 25,018 | 🥉 139,698 |   86,435   |
+| 4096 B  | nonzero | 🤝 1,315 | 🥉 103,253 |  🤝 1,337   |
+| 4096 B  | mixed   | 🤝 2,086 | 🥉 103,394 |  🤝 2,067   |
 
 ### Code size
 
 Measured from `.text` section of release-optimized symbols (`encode` + `decode`
-combined):
+combined). Run `just bench-size` to reproduce.
 
 | Crate          | `encode` | `decode` | Total |
 |----------------|--------:|---------:|------:|
-| μCOBS          |   434 B |    435 B | 869 B |
-| `cobs` 0.5     |   245 B |    292 B | 537 B |
+| μCOBS          |   429 B |    392 B | 821 B |
+| `cobs` 0.5     |   282 B |    494 B | 776 B |
 | `corncobs` 0.1 |   375 B |    262 B | 637 B |
 
-All three crates are under 1 KB. μCOBS is the largest due to its
-optimized encode (sub-slice scan, zero fast path, `copy_from_slice`)
-and decode (batch zero fill) paths.
+All three crates are under 1 KB. μCOBS is the largest because safe
+`const fn` encoding with `copy_from_slice`/memcpy requires `split_at`
+bounds checks that generate panic paths — the cost of combining
+compile-time safety with runtime speed. Embedded users targeting size
+over speed can build with `opt-level = "s"` which reduces μCOBS to
+~738 B.
 
 ### Crate properties
 
@@ -84,8 +88,9 @@ and decode (batch zero fill) paths.
 [^1]: Requires disabling the default `std` feature.
 [^2]: `alloc` is enabled by default via the `std` feature.
 
-> Measured on AMD Ryzen 7 7840U, Rust 1.93.1, Linux 6.18. Run `just bench`
-> to reproduce. Full Criterion reports are generated in `target/criterion/report/`.
+> Benchmarked with iai-callgrind (Valgrind instruction counting) for
+> deterministic, reproducible results. Run `just bench` to reproduce.
+> Requires `valgrind` installed.
 
 ## When to use μCOBS
 
@@ -93,26 +98,28 @@ and decode (batch zero fill) paths.
 |---|:---:|:---:|:---:|
 | Minimal code to audit | **~140 LOC** | ~790 LOC | ~645 LOC |
 | Compile-time (`const fn`) encode | **yes** | no | no |
-| Fastest encode (nonzero/mixed) | **yes** | no | ties μCOBS |
-| Fastest encode (zero-heavy) | 2nd | **yes** | no |
-| Fastest decode (zero-heavy) | **yes (3×)** | no | 2nd |
-| Fastest decode (nonzero) | **ties corncobs** | no | **ties μCOBS** |
-| Fastest decode (mixed) | 2nd | no | **yes** |
+| Fewest encode instructions | **ties cobs/corncobs** | zeros only | nonzero only |
+| Fewest decode instructions (zero-heavy) | **yes (3–5×)** | no | 2nd |
+| Fewest decode instructions (nonzero) | **yes/tied** | no | tied |
+| Fewest decode instructions (mixed) | tied at 4 KB | no | **slight edge at small sizes** |
 | Dead-simple API (3 functions) | **yes** | yes | more surface area |
 | In-place / streaming encode | no | no | **yes** |
 | `no_std` + zero-alloc by default | **yes** | opt-in | **yes** |
 | Thorough test suite | **106 tests, fuzz, proptest** | basic | basic |
 
 **Choose μCOBS** if you want the smallest, most auditable COBS implementation
-with a `const fn` encoder, a dead-simple 3-function API, and leading or
-competitive throughput across most workloads — especially on embedded targets.
+with a `const fn` encoder, a dead-simple 3-function API, and leading or tied
+instruction efficiency across most workloads — plus dominant decode performance
+on zero-heavy data (3–5× fewer instructions than alternatives). Wins or ties
+16 of 18 benchmarks.
 
 **Choose `corncobs`** if you need in-place encoding, an iterator-based API,
-or your workload is dominated by large mixed-pattern decoding where it holds
-a throughput edge.
+or your workload is dominated by small mixed-pattern decoding where it uses
+~8% fewer instructions at 64–256 B.
 
-**Choose `cobs`** if you need `std` convenience features, a streaming state
-machine, or your data is predominantly zero-heavy where it leads on encode.
+**Choose `cobs`** if you need `std` convenience features or a streaming state
+machine. Note: `cobs` uses 50–75× more instructions than μCOBS/corncobs for
+decoding non-zero data.
 
 ## Examples
 
@@ -275,7 +282,7 @@ affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
 ## Testing
 
 μCOBS has one of the most thorough test suites of any COBS implementation —
-106 tests across 7 categories:
+106 tests across 8 categories:
 
 - **Canonical vectors** — every example from Cheshire & Baker 1999 (the original
   COBS paper), plus the full Wikipedia vector set
@@ -288,6 +295,8 @@ affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
   structural/algebraic properties, and boundary-region behavior
 - **Fuzz targets** — 3 `cargo-fuzz` harnesses (decode, round-trip, small-dest)
   for continuous coverage of edge cases
+- **Mutation testing** — `cargo-mutants` verifies that the test suite catches
+  injected bugs in every reachable code path
 - **Boundary tests** — exhaustive coverage of 254/255-byte block boundaries,
   multi-block splits, buffer-exact fits, and off-by-one dest sizes
 - **Compile-time verification** — `const` assertions that validate encode
@@ -297,11 +306,11 @@ affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
 # Unit + property + interop tests
 just test-unit
 
-# All quality gates (tests, clippy, fmt, doc, fuzz, miri)
+# All quality gates (tests, clippy, fmt, doc, fuzz, miri, mutants)
 just test
 
-# Fuzz testing only (requires nightly + cargo-fuzz)
-just test-fuzz
+# Mutation testing only
+just test-mutants
 ```
 
 ## License

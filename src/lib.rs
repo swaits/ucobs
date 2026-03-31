@@ -155,23 +155,24 @@
 #![warn(missing_docs)]
 
 /// Copy `src` into `dest[offset..]` in a const-compatible way.
-/// Default path uses `copy_from_slice` (Rust 1.93+, compiles to memcpy).
+/// Uses `copy_from_slice` (Rust 1.93+, compiles to memcpy).
 /// With `legacy-msrv` feature, falls back to a manual loop for Rust 1.83+.
 #[inline(always)]
 #[cfg(not(feature = "legacy-msrv"))]
-const fn const_copy(dest: &mut [u8], offset: usize, src: &[u8]) {
-    let (_, tail) = dest.split_at_mut(offset);
-    let (chunk, _) = tail.split_at_mut(src.len());
-    chunk.copy_from_slice(src);
+const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
+    let (_, dt) = dest.split_at_mut(di);
+    let (dc, _) = dt.split_at_mut(n);
+    let (sc, _) = src.split_at(n);
+    dc.copy_from_slice(sc);
 }
 
 /// Fallback const copy for toolchains older than Rust 1.93.
 #[inline(always)]
 #[cfg(feature = "legacy-msrv")]
-const fn const_copy(dest: &mut [u8], offset: usize, src: &[u8]) {
+const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
     let mut i = 0;
-    while i < src.len() {
-        dest[offset + i] = src[i];
+    while i < n {
+        dest[di + i] = src[i];
         i += 1;
     }
 }
@@ -215,13 +216,8 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         let remaining = src.len() - si;
         let max_run = if remaining < 254 { remaining } else { 254 };
 
-        // Create bounded source window (split_at is const since Rust 1.71).
-        let (_, src_tail) = src.split_at(si);
-        let (src_window, _) = src_tail.split_at(max_run);
-
-        // Fast path: leading zero byte avoids scan loop overhead.
-        // Always continue — the next iteration emits the trailing group code byte.
-        if max_run > 0 && src_window[0] == 0x00 {
+        // Fast path: leading zero byte — skip split_at overhead entirely.
+        if max_run > 0 && src[si] == 0x00 {
             if di >= dest.len() {
                 return None;
             }
@@ -231,8 +227,11 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
             continue;
         }
 
-        // Phase 1: Scan for next zero byte.
-        // LLVM sees `run < src_window.len()` → eliminates bounds check.
+        // Create bounded source window for scan + copy.
+        let (_, src_tail) = src.split_at(si);
+        let (src_window, _) = src_tail.split_at(max_run);
+
+        // Scan for next zero byte.
         let mut run = 0;
         while run < src_window.len() && src_window[run] != 0x00 {
             run += 1;
@@ -246,13 +245,12 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         dest[di] = if full_block { 0xFF } else { (run + 1) as u8 };
         di += 1;
 
-        // Phase 2: Copy via const copy_from_slice (Rust 1.93+) → memcpy.
+        // Copy the run.
         if run > 0 {
             if di + run > dest.len() {
                 return None;
             }
-            let (src_chunk, _) = src_window.split_at(run);
-            const_copy(dest, di, src_chunk);
+            const_copy(dest, di, src_window, run);
             di += run;
         }
         si += run;
@@ -297,44 +295,44 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
 /// ```
 #[must_use]
 pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
-    let mut si = 0;
+    let mut src = src;
     let mut di = 0;
-    while si < src.len() {
-        let code = src[si] as usize;
-        si += 1;
+    while let Some((&code_byte, rest)) = src.split_first() {
+        src = rest;
+        let code = code_byte as usize;
         if code == 0 {
-            return None; // unexpected zero in COBS data
+            return None;
         }
 
         if code == 1 {
-            // Batch path: count consecutive 0x01 codes, fill zeros in bulk.
+            // Batch consecutive 0x01 codes and fill zeros in bulk.
             let mut count = 1usize;
-            while si < src.len() && src[si] == 0x01 {
-                si += 1;
+            while let Some((&next, rest)) = src.split_first() {
+                if next != 0x01 {
+                    break;
+                }
+                src = rest;
                 count += 1;
             }
-            // Each 0x01 inserts an implicit zero, except the last at end-of-input.
-            let zeros = if si < src.len() { count } else { count - 1 };
-            if zeros > 0 {
-                if di + zeros > dest.len() {
-                    return None;
-                }
-                dest[di..di + zeros].fill(0);
-                di += zeros;
+            let zeros = if !src.is_empty() { count } else { count - 1 };
+            if di + zeros > dest.len() {
+                return None;
             }
+            dest[di..di + zeros].fill(0);
+            di += zeros;
             continue;
         }
 
         // Bulk-copy `code - 1` data bytes.
         let n = code - 1;
-        if si + n > src.len() || di + n > dest.len() {
+        if src.len() < n || di + n > dest.len() {
             return None;
         }
-        dest[di..di + n].copy_from_slice(&src[si..si + n]);
+        let (block, rest) = src.split_at(n);
+        dest[di..di + n].copy_from_slice(block);
         di += n;
-        si += n;
-        // If code < 0xFF, an implicit zero follows (unless we're at the end).
-        if code != 0xFF && si < src.len() {
+        src = rest;
+        if code != 0xFF && !src.is_empty() {
             if di >= dest.len() {
                 return None;
             }

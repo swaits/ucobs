@@ -2,6 +2,8 @@
 /fuzz/target
 /fuzz/corpus
 /fuzz/artifacts
+/mutants.out
+/mutants.out.old
 Cargo.lock
 __pycache__/
 *.pyc
