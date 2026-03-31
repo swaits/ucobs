@@ -184,14 +184,30 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
     let mut di = 0;
 
     loop {
-        // Scan for next zero (or 254-byte cap).
         let remaining = src.len() - si;
         let max_run = if remaining < 254 { remaining } else { 254 };
-        let mut run = 0;
-        if max_run > 0 && src[si] != 0x00 {
-            while run < max_run && src[si + run] != 0x00 {
-                run += 1;
+
+        // Create bounded source window (split_at is const since Rust 1.71).
+        let (_, src_tail) = src.split_at(si);
+        let (src_window, _) = src_tail.split_at(max_run);
+
+        // Fast path: leading zero byte avoids scan loop overhead.
+        // Always continue — the next iteration emits the trailing group code byte.
+        if max_run > 0 && src_window[0] == 0x00 {
+            if di >= dest.len() {
+                return None;
             }
+            dest[di] = 0x01;
+            di += 1;
+            si += 1;
+            continue;
+        }
+
+        // Phase 1: Scan for next zero byte.
+        // LLVM sees `run < src_window.len()` → eliminates bounds check.
+        let mut run = 0;
+        while run < src_window.len() && src_window[run] != 0x00 {
+            run += 1;
         }
         let full_block = run == 254;
 
@@ -202,28 +218,24 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         dest[di] = if full_block { 0xFF } else { (run + 1) as u8 };
         di += 1;
 
-        // Copy the run.
+        // Phase 2: Copy via const copy_from_slice (Rust 1.93+) → memcpy.
         if run > 0 {
             if di + run > dest.len() {
                 return None;
             }
-            let mut i = 0;
-            while i < run {
-                dest[di + i] = src[si + i];
-                i += 1;
-            }
+            let (_, dest_tail) = dest.split_at_mut(di);
+            let (dest_chunk, _) = dest_tail.split_at_mut(run);
+            let (src_chunk, _) = src_window.split_at(run);
+            dest_chunk.copy_from_slice(src_chunk);
             di += run;
         }
         si += run;
 
         if full_block {
-            // 254 non-zero bytes emitted; no implicit zero.
-            // If input is exhausted exactly here, we're done.
             if si >= src.len() {
                 break;
             }
         } else {
-            // Run ended at a zero or end-of-input.
             if si >= src.len() {
                 break;
             }
@@ -267,6 +279,26 @@ pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         if code == 0 {
             return None; // unexpected zero in COBS data
         }
+
+        if code == 1 {
+            // Batch path: count consecutive 0x01 codes, fill zeros in bulk.
+            let mut count = 1usize;
+            while si < src.len() && src[si] == 0x01 {
+                si += 1;
+                count += 1;
+            }
+            // Each 0x01 inserts an implicit zero, except the last at end-of-input.
+            let zeros = if si < src.len() { count } else { count - 1 };
+            if zeros > 0 {
+                if di + zeros > dest.len() {
+                    return None;
+                }
+                dest[di..di + zeros].fill(0);
+                di += zeros;
+            }
+            continue;
+        }
+
         // Bulk-copy `code - 1` data bytes.
         let n = code - 1;
         if si + n > src.len() || di + n > dest.len() {
@@ -276,7 +308,7 @@ pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         di += n;
         si += n;
         // If code < 0xFF, an implicit zero follows (unless we're at the end).
-        if code < 0xFF && si < src.len() {
+        if code != 0xFF && si < src.len() {
             if di >= dest.len() {
                 return None;
             }
@@ -910,11 +942,11 @@ mod tests {
 
     #[test]
     fn interop_random_payloads() {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        use rand::RngExt;
+        let mut rng = rand::rng();
         for _ in 0..500 {
-            let len = rng.gen_range(0..=512);
-            let data: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
+            let len = rng.random_range(0..=512);
+            let data: Vec<u8> = (0..len).map(|_| rng.random()).collect();
             cross_encode(&data);
             cross_decode(&data);
         }

@@ -1,4 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 // ── Test payloads ───────────────────────────────────────────────────
 
@@ -51,9 +53,11 @@ fn cobs_encode(data: &[u8]) -> Vec<u8> {
 }
 
 fn cobs_decode(encoded: &[u8], out: &mut [u8]) -> usize {
-    // unwrap_or(0): the cobs crate returns Err(EmptyFrame) for empty input,
-    // which is valid COBS. We treat it as 0 decoded bytes for benchmarking.
-    cobs::decode(encoded, out).unwrap_or(0)
+    // The cobs crate returns DecodeReport on success or Err(EmptyFrame)
+    // for empty input. We extract parsed_size, treating errors as 0.
+    cobs::decode(encoded, out)
+        .map(|report| report.parsed_size())
+        .unwrap_or(0)
 }
 
 // ── Benchmarks ──────────────────────────────────────────────────────
