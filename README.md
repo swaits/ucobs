@@ -26,88 +26,93 @@ Benchmarked against the two other `no_std` COBS crates using
 [Criterion](https://github.com/bheisler/criterion.rs) across three payload
 patterns: **all zeros** (worst case — every byte triggers a code emit),
 **no zeros**, and **mixed** (0x00–0xFF cycling). Throughput in MB/s, higher
-is better.
+is better. Legend: 🥇 winner, 🥉 last, 🤝 statistical tie (<5%).
 
 ### Encode
 
-| Payload | Pattern | μCOBS | `cobs` 0.3 | `corncobs` 0.1 |
+| Payload | Pattern | μCOBS | `cobs` 0.5 | `corncobs` 0.1 |
 |---------|---------|------:|-----------:|---------------:|
-| 64 B    | zeros   |   595 |        748 |            180 |
-| 64 B    | mixed   | 1,853 |      1,011 |          1,734 |
-| 64 B    | nonzero | 1,884 |      1,012 |          2,110 |
-| 256 B   | zeros   |   654 |        817 |            184 |
-| 256 B   | mixed   | 1,888 |      1,002 |          1,887 |
-| 256 B   | nonzero | 1,964 |      1,004 |          1,968 |
-| 4096 B  | zeros   |   675 |        845 |            188 |
-| 4096 B  | mixed   | 1,734 |      1,016 |          1,746 |
-| 4096 B  | nonzero | 1,775 |      1,020 |          2,245 |
+| 64 B    | zeros   | 1,485 | 🥇 1,572  |       🥉 274   |
+| 64 B    | nonzero | 🤝 3,721 | 🥉 2,177 |    🤝 3,616   |
+| 64 B    | mixed   | 🥇 3,596 | 🥉 2,019 |       3,137   |
+| 256 B   | zeros   | 1,494 | 🥇 1,962  |       🥉 341   |
+| 256 B   | nonzero | 🥇 4,267 | 🥉 2,218 |       3,951   |
+| 256 B   | mixed   | 🤝 3,891 | 🥉 2,114 |    🤝 3,867   |
+| 4096 B  | zeros   | 1,376 | 🥇 2,052  |       🥉 334   |
+| 4096 B  | nonzero | 🤝 4,538 | 🥉 2,227 |    🤝 4,501   |
+| 4096 B  | mixed   | 🤝 3,993 | 🥉 1,549 |    🤝 3,888   |
 
 ### Decode
 
-| Payload | Pattern | μCOBS | `cobs` 0.3 | `corncobs` 0.1 |
+| Payload | Pattern | μCOBS | `cobs` 0.5 | `corncobs` 0.1 |
 |---------|---------|------:|-----------:|---------------:|
-| 64 B    | zeros   |   595 |        440 |            732 |
-| 64 B    | mixed   | 7,041 |        504 |          7,991 |
-| 64 B    | nonzero | 9,900 |        502 |          9,807 |
-| 256 B   | zeros   |   656 |        472 |            742 |
-| 256 B   | mixed   |17,024 |        645 |         16,207 |
-| 256 B   | nonzero |18,456 |        647 |         19,549 |
-| 4096 B  | zeros   |   675 |        483 |            768 |
-| 4096 B  | mixed   |17,522 |        656 |         22,959 |
-| 4096 B  | nonzero |37,987 |        623 |         40,005 |
+| 64 B    | zeros   | 🥇 2,896 | 🥉 924   |       1,520   |
+| 64 B    | nonzero | 🤝 16,000 | 🥉 1,168 |  🤝 15,238   |
+| 64 B    | mixed   |    9,275 | 🥉 1,133  |  🥇 15,610   |
+| 256 B   | zeros   | 🥇 3,088 | 🥉 914   |       1,496   |
+| 256 B   | nonzero | 40,000 | 🥉 1,179   |  🥇 42,667   |
+| 256 B   | mixed   | 28,444 | 🥉 1,140   |  🥇 37,647   |
+| 4096 B  | zeros   | 🥇 4,620 | 🥉 942   |       1,549   |
+| 4096 B  | nonzero | 🥇 68,040 | 🥉 1,203 |     58,851   |
+| 4096 B  | mixed   | 40,236 | 🥉 1,154   |  🥇 49,769   |
 
 ### Code size
 
 Measured from `.text` section of release-optimized symbols (`encode` + `decode`
 combined):
 
-| Crate          | Code size |
-|----------------|----------:|
-| μCOBS          |   541 B   |
-| `cobs` 0.3     |   537 B   |
-| `corncobs` 0.1 |   637 B   |
+| Crate          | `encode` | `decode` | Total |
+|----------------|--------:|---------:|------:|
+| μCOBS          |   434 B |    435 B | 869 B |
+| `cobs` 0.5     |   245 B |    292 B | 537 B |
+| `corncobs` 0.1 |   375 B |    262 B | 637 B |
 
-All three crates are tiny. The difference is negligible for any target.
+All three crates are under 1 KB. μCOBS is the largest due to its
+optimized encode (sub-slice scan, zero fast path, `copy_from_slice`)
+and decode (batch zero fill) paths.
 
 ### Crate properties
 
-| Property       | μCOBS  | `cobs` 0.3       | `corncobs` 0.1 |
+| Property       | μCOBS  | `cobs` 0.5       | `corncobs` 0.1 |
 |----------------|:------:|:-----------------:|:--------------:|
 | `no_std`       | always | opt-in[^1]        | always         |
 | Zero-alloc     | yes    | opt-in[^2]        | yes            |
 | `unsafe`-free  | yes    | yes               | yes            |
 | `const fn` encode | yes | no                | no             |
-| Implementation | ~120 LOC | ~790 LOC        | ~645 LOC       |
+| Implementation | ~140 LOC | ~790 LOC        | ~645 LOC       |
 
 [^1]: Requires disabling the default `std` feature.
 [^2]: `alloc` is enabled by default via the `std` feature.
 
-> Measured on Intel N100, Rust 1.93.1, Linux 6.12. Run `just bench` to
-> reproduce. Full Criterion reports are generated in `target/criterion/report/`.
+> Measured on AMD Ryzen 7 7840U, Rust 1.93.1, Linux 6.18. Run `just bench`
+> to reproduce. Full Criterion reports are generated in `target/criterion/report/`.
 
 ## When to use μCOBS
 
-| You need… | μCOBS | `cobs` 0.3 | `corncobs` 0.1 |
+| You need… | μCOBS | `cobs` 0.5 | `corncobs` 0.1 |
 |---|:---:|:---:|:---:|
-| Minimal code to audit | **~120 LOC** | ~790 LOC | ~645 LOC |
+| Minimal code to audit | **~140 LOC** | ~790 LOC | ~645 LOC |
 | Compile-time (`const fn`) encode | **yes** | no | no |
-| Fastest encode (zero-heavy data) | **3–4×** faster | baseline | slowest |
-| Fastest decode (large payloads) | competitive | slow | **slight edge** |
+| Fastest encode (nonzero/mixed) | **yes** | no | ties μCOBS |
+| Fastest encode (zero-heavy) | 2nd | **yes** | no |
+| Fastest decode (zero-heavy) | **yes (3×)** | no | 2nd |
+| Fastest decode (nonzero) | **ties corncobs** | no | **ties μCOBS** |
+| Fastest decode (mixed) | 2nd | no | **yes** |
 | Dead-simple API (3 functions) | **yes** | yes | more surface area |
 | In-place / streaming encode | no | no | **yes** |
 | `no_std` + zero-alloc by default | **yes** | opt-in | **yes** |
 | Thorough test suite | **106 tests, fuzz, proptest** | basic | basic |
 
 **Choose μCOBS** if you want the smallest, most auditable COBS implementation
-with a minimal API and strong performance — especially on embedded targets or
-payloads containing many zero bytes.
+with a `const fn` encoder, a dead-simple 3-function API, and leading or
+competitive throughput across most workloads — especially on embedded targets.
 
-**Choose `corncobs`** if you need in-place encoding, an iterator-based API, or
-your workload is dominated by large non-zero payloads where it holds a slight
-throughput edge.
+**Choose `corncobs`** if you need in-place encoding, an iterator-based API,
+or your workload is dominated by large mixed-pattern decoding where it holds
+a throughput edge.
 
-**Choose `cobs`** if you need `std` convenience features and don't care about
-`no_std` or encode performance.
+**Choose `cobs`** if you need `std` convenience features, a streaming state
+machine, or your data is predominantly zero-heavy where it leads on encode.
 
 ## Examples
 
