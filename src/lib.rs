@@ -9,39 +9,177 @@
 //! Overhead is at most 1 byte per 254 input bytes plus 1; see
 //! [`max_encoded_len`] for the exact formula.
 //!
-//! This crate is `no_std` and zero-alloc — suitable for embedded firmware.
+//! This crate is `no_std`, zero-alloc, and `unsafe`-free — it runs
+//! everywhere from 8-bit MCUs to servers.
 //!
-//! # Sentinel convention
+//! # Quick start
+//!
+//! ```
+//! // Encode
+//! let mut buf = [0u8; 16];
+//! let n = ucobs::encode(&[0x11, 0x00, 0x33], &mut buf).unwrap();
+//! assert_eq!(&buf[..n], &[0x02, 0x11, 0x02, 0x33]);
+//!
+//! // Decode
+//! let mut out = [0u8; 16];
+//! let m = ucobs::decode(&buf[..n], &mut out).unwrap();
+//! assert_eq!(&out[..m], &[0x11, 0x00, 0x33]);
+//! ```
+//!
+//! # Buffer sizing
+//!
+//! Use [`max_encoded_len`] to determine the required destination buffer
+//! size before encoding:
+//!
+//! ```
+//! let data = [0x01, 0x02, 0x03];
+//! let max = ucobs::max_encoded_len(data.len()); // 4
+//!
+//! let mut buf = [0u8; 4];
+//! let n = ucobs::encode(&data, &mut buf).unwrap();
+//! assert_eq!(n, 4); // fits exactly
+//! ```
+//!
+//! If the destination is too small, `encode` returns `None` rather than
+//! panicking:
+//!
+//! ```
+//! let mut tiny = [0u8; 1];
+//! assert_eq!(ucobs::encode(&[0x01, 0x02], &mut tiny), None);
+//! ```
+//!
+//! # Framing for transport
 //!
 //! The encoder does **not** append a trailing `0x00` sentinel. The decoder
-//! expects input **without** a trailing sentinel. Callers should append /
-//! strip the sentinel themselves when framing for transport:
+//! expects input **without** a trailing sentinel. Append and strip the
+//! sentinel yourself when framing for transport:
 //!
 //! ```
 //! let data = [0x11, 0x00, 0x33];
 //!
-//! // Encode — leave room for the sentinel byte
+//! // Encode into a wire frame: [COBS bytes...] [0x00 sentinel]
 //! let mut frame = [0u8; 16];
 //! let n = ucobs::encode(&data, &mut frame).unwrap();
-//! frame[n] = 0x00; // append sentinel for framing
+//! frame[n] = 0x00; // append sentinel
+//! let wire = &frame[..n + 1];
 //!
-//! // Decode — strip sentinel before decoding
+//! // On the receiving end, strip the sentinel before decoding
+//! let cobs_data = &wire[..wire.len() - 1];
 //! let mut out = [0u8; 16];
-//! let m = ucobs::decode(&frame[..n], &mut out).unwrap();
+//! let m = ucobs::decode(cobs_data, &mut out).unwrap();
 //! assert_eq!(&out[..m], &data);
+//! ```
+//!
+//! # Parsing a stream of frames
+//!
+//! In a byte stream, split on `0x00` to extract individual COBS frames,
+//! then decode each one:
+//!
+//! ```
+//! // Simulate a stream containing two frames separated by 0x00 sentinels
+//! let stream = [
+//!     0x02, 0x11, 0x02, 0x33, 0x00,  // frame 1: encodes [0x11, 0x00, 0x33]
+//!     0x03, 0xAA, 0xBB, 0x00,        // frame 2: encodes [0xAA, 0xBB]
+//! ];
+//!
+//! let mut out = [0u8; 16];
+//! let frames: Vec<&[u8]> = stream.split(|&b| b == 0x00)
+//!     .filter(|f| !f.is_empty())
+//!     .collect();
+//!
+//! let n = ucobs::decode(frames[0], &mut out).unwrap();
+//! assert_eq!(&out[..n], &[0x11, 0x00, 0x33]);
+//!
+//! let n = ucobs::decode(frames[1], &mut out).unwrap();
+//! assert_eq!(&out[..n], &[0xAA, 0xBB]);
+//! ```
+//!
+//! # Compile-time encoding
+//!
+//! [`encode`] is `const fn`, so you can build COBS-encoded lookup tables
+//! or protocol headers at compile time with zero runtime cost:
+//!
+//! ```
+//! // Pre-encode a command table at compile time
+//! const PING: [u8; 2] = {
+//!     let mut buf = [0u8; 2];
+//!     match ucobs::encode(&[0x01], &mut buf) {
+//!         Some(_) => buf,
+//!         None => panic!("buffer too small"),
+//!     }
+//! };
+//!
+//! const ACK: [u8; 3] = {
+//!     let mut buf = [0u8; 3];
+//!     match ucobs::encode(&[0x06, 0x00], &mut buf) {
+//!         Some(_) => buf,
+//!         None => panic!("buffer too small"),
+//!     }
+//! };
+//!
+//! // No runtime encoding needed — these are baked into the binary
+//! assert_eq!(PING, [0x02, 0x01]);
+//! assert_eq!(ACK, [0x02, 0x06, 0x01]);
+//! ```
+//!
+//! # Error handling
+//!
+//! Both [`encode`] and [`decode`] return `Option<usize>` — `None` on
+//! failure, never panic.
+//!
+//! ```
+//! let mut buf = [0u8; 8];
+//!
+//! // Destination too small for encode
+//! assert_eq!(ucobs::encode(&[1, 2, 3], &mut buf[..1]), None);
+//!
+//! // Malformed COBS data (zero byte in encoded stream)
+//! assert_eq!(ucobs::decode(&[0x00], &mut buf), None);
+//!
+//! // Truncated frame (code byte promises more data than exists)
+//! assert_eq!(ucobs::decode(&[0x05, 0x11], &mut buf), None);
+//!
+//! // Empty input is valid for both
+//! assert_eq!(ucobs::encode(&[], &mut buf), Some(1)); // encodes to [0x01]
+//! assert_eq!(ucobs::decode(&[], &mut buf), Some(0)); // decodes to []
 //! ```
 
 #![no_std]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-/// Encode `src` into `dest` using COBS. Returns the number of bytes written,
-/// or `None` if `dest` is too small.
+/// COBS-encode `src` into `dest`.
 ///
-/// The output does **not** include a trailing `0x00` sentinel — the caller
-/// should append it as a frame delimiter.
+/// Returns the number of bytes written, or `None` if `dest` is too small.
+/// Use [`max_encoded_len`] to size the destination buffer.
+///
+/// The output does **not** include a trailing `0x00` sentinel — append it
+/// yourself when framing for transport.
+///
+/// This function is `const fn`, so it can encode data at compile time.
+///
+/// # Examples
+///
+/// ```
+/// let mut buf = [0u8; 8];
+/// let n = ucobs::encode(&[0x00], &mut buf).unwrap();
+/// assert_eq!(&buf[..n], &[0x01, 0x01]);
+/// ```
+///
+/// Compile-time encoding:
+///
+/// ```
+/// const ENCODED: [u8; 4] = {
+///     let mut buf = [0u8; 4];
+///     match ucobs::encode(&[0x11, 0x00, 0x33], &mut buf) {
+///         Some(_) => buf,
+///         None => panic!("buffer too small"),
+///     }
+/// };
+/// assert_eq!(ENCODED, [0x02, 0x11, 0x02, 0x33]);
+/// ```
 #[must_use]
-pub fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
+pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
     let mut si = 0;
     let mut di = 0;
 
@@ -49,14 +187,12 @@ pub fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         // Scan for next zero (or 254-byte cap).
         let remaining = src.len() - si;
         let max_run = if remaining < 254 { remaining } else { 254 };
-        let run = if max_run > 0 && src[si] == 0x00 {
-            0
-        } else {
-            src[si..si + max_run]
-                .iter()
-                .position(|&b| b == 0x00)
-                .unwrap_or(max_run)
-        };
+        let mut run = 0;
+        if max_run > 0 && src[si] != 0x00 {
+            while run < max_run && src[si + run] != 0x00 {
+                run += 1;
+            }
+        }
         let full_block = run == 254;
 
         // Write code byte.
@@ -66,12 +202,16 @@ pub fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         dest[di] = if full_block { 0xFF } else { (run + 1) as u8 };
         di += 1;
 
-        // Bulk-copy the run.
+        // Copy the run.
         if run > 0 {
             if di + run > dest.len() {
                 return None;
             }
-            dest[di..di + run].copy_from_slice(&src[si..si + run]);
+            let mut i = 0;
+            while i < run {
+                dest[di + i] = src[si + i];
+                i += 1;
+            }
             di += run;
         }
         si += run;
@@ -94,12 +234,29 @@ pub fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
     Some(di)
 }
 
-/// Decode a COBS-encoded buffer. Returns the number of decoded bytes
-/// written to `dest`, or `None` if the input is malformed or `dest` is
-/// too small.
+/// Decode a COBS-encoded buffer.
+///
+/// Returns the number of decoded bytes written to `dest`, or `None` if the
+/// input is malformed or `dest` is too small.
 ///
 /// `src` should **not** include the trailing `0x00` frame sentinel — strip
 /// it before calling this function.
+///
+/// # Examples
+///
+/// ```
+/// let mut out = [0u8; 8];
+/// let n = ucobs::decode(&[0x02, 0x11, 0x02, 0x33], &mut out).unwrap();
+/// assert_eq!(&out[..n], &[0x11, 0x00, 0x33]);
+/// ```
+///
+/// Malformed input returns `None`:
+///
+/// ```
+/// let mut out = [0u8; 8];
+/// assert_eq!(ucobs::decode(&[0x00], &mut out), None); // unexpected zero
+/// assert_eq!(ucobs::decode(&[0x05, 0x11], &mut out), None); // truncated
+/// ```
 #[must_use]
 pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
     let mut si = 0;
@@ -112,14 +269,12 @@ pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         }
         // Bulk-copy `code - 1` data bytes.
         let n = code - 1;
-        if n > 0 {
-            if si + n > src.len() || di + n > dest.len() {
-                return None;
-            }
-            dest[di..di + n].copy_from_slice(&src[si..si + n]);
-            di += n;
-            si += n;
+        if si + n > src.len() || di + n > dest.len() {
+            return None;
         }
+        dest[di..di + n].copy_from_slice(&src[si..si + n]);
+        di += n;
+        si += n;
         // If code < 0xFF, an implicit zero follows (unless we're at the end).
         if code < 0xFF && si < src.len() {
             if di >= dest.len() {
@@ -133,6 +288,17 @@ pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
 }
 
 /// Maximum encoded size for a given source length (excluding sentinel).
+///
+/// Use this to allocate a destination buffer for [`encode`]. The formula
+/// is `src_len + (src_len / 254) + 1`.
+///
+/// # Examples
+///
+/// ```
+/// assert_eq!(ucobs::max_encoded_len(0), 1);
+/// assert_eq!(ucobs::max_encoded_len(1), 2);
+/// assert_eq!(ucobs::max_encoded_len(254), 256);
+/// ```
 #[must_use]
 pub const fn max_encoded_len(src_len: usize) -> usize {
     src_len + (src_len / 254) + 1
@@ -154,6 +320,21 @@ mod tests {
         let mut buf = vec![0u8; max_encoded_len(input.len()) + 1];
         encode(input, &mut buf).map(|n| buf[..n].to_vec())
     }
+
+    // ── Compile-time (const fn) encode ────────────────────────────
+
+    const _: () = {
+        let input = [0x11, 0x00, 0x33];
+        let mut buf = [0u8; 8];
+        let Some(n) = encode(&input, &mut buf) else {
+            panic!("const encode failed");
+        };
+        assert!(n == 4);
+        assert!(buf[0] == 0x02);
+        assert!(buf[1] == 0x11);
+        assert!(buf[2] == 0x02);
+        assert!(buf[3] == 0x33);
+    };
 
     // ── Wikipedia canonical decode vectors (Cheshire & Baker 1999) ──
 

@@ -1,8 +1,8 @@
 [package]
 name = "ucobs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.83"
 license = "MIT"
 description = "μCOBS — Consistent Overhead Byte Stuffing. no_std, zero-alloc, fastest, most-tested COBS implementation."
 authors = ["Stephen Waits <steve@waits.net>"]
