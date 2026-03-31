@@ -249,6 +249,24 @@ assert_eq!(ucobs::decode(&[], &mut buf), Some(0)); // decodes to []
 **Note:** The encoder does *not* append a trailing `0x00` sentinel. Append it
 yourself when framing for transport.
 
+## Minimum Supported Rust Version
+
+The default build requires **Rust 1.93+** (for const `copy_from_slice`).
+
+### `legacy-msrv` feature
+
+If you're targeting a toolchain older than 1.93 (e.g. Xtensa), enable the
+`legacy-msrv` feature to fall back to a manual byte copy in the encoder:
+
+```toml
+[dependencies]
+ucobs = { version = "0.3", features = ["legacy-msrv"] }
+```
+
+All other optimizations (sub-slice scan, zero fast path, decode batch fill)
+are available regardless of this feature. Only the encode copy phase is
+affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
+
 ## Testing
 
 μCOBS has one of the most thorough test suites of any COBS implementation —

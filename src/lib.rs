@@ -12,6 +12,12 @@
 //! This crate is `no_std`, zero-alloc, and `unsafe`-free — it runs
 //! everywhere from 8-bit MCUs to servers.
 //!
+//! # Feature flags
+//!
+//! - **`legacy-msrv`** — Enables compilation on Rust 1.83+ by replacing
+//!   the const `copy_from_slice` (requires Rust 1.93) with a manual byte
+//!   loop in the encoder. All other optimizations are unaffected.
+//!
 //! # Quick start
 //!
 //! ```
