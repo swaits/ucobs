@@ -105,7 +105,7 @@ over speed can build with `opt-level = "s"` which reduces μCOBS to
 | Dead-simple API (3 functions) | **yes** | yes | more surface area |
 | In-place / streaming encode | no | no | **yes** |
 | `no_std` + zero-alloc by default | **yes** | opt-in | **yes** |
-| Thorough test suite | **106 tests, fuzz, proptest** | basic | basic |
+| Thorough test suite | **111 tests, fuzz, proptest, mutants** | basic | basic |
 
 **Choose μCOBS** if you want the smallest, most auditable COBS implementation
 with a `const fn` encoder, a dead-simple 3-function API, and leading or tied
@@ -282,7 +282,7 @@ affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
 ## Testing
 
 μCOBS has one of the most thorough test suites of any COBS implementation —
-106 tests across 8 categories:
+111 tests across 8 categories:
 
 - **Canonical vectors** — every example from Cheshire & Baker 1999 (the original
   COBS paper), plus the full Wikipedia vector set

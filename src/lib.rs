@@ -834,6 +834,49 @@ mod tests {
         assert_eq!(enc(&input), Some(expected));
     }
 
+    #[test]
+    fn encode_254_block_boundary_exact() {
+        // 254 nonzero bytes MUST produce code 0xFF (full block), NOT 0xFF+1=0x00.
+        // This catches max_run being 255 instead of 254.
+        let input: Vec<u8> = (1..=254).map(|i| i as u8).collect();
+        let encoded = enc(&input).unwrap();
+        assert_eq!(encoded[0], 0xFF); // code byte for full 254-byte block
+        assert_eq!(encoded.len(), 255); // 1 code byte + 254 data bytes
+        // Verify it round-trips
+        let mut dec = vec![0u8; 256];
+        let n = decode(&encoded, &mut dec).unwrap();
+        assert_eq!(&dec[..n], &input[..]);
+    }
+
+    #[test]
+    fn encode_255_nonzero_needs_two_blocks() {
+        // 255 nonzero bytes must split into a 254-byte full block + 1-byte block.
+        // If max_run were 255 (bug), this would be a single block — wrong.
+        let input: Vec<u8> = (1..=255).map(|i| (i % 255 + 1) as u8).collect();
+        let encoded = enc(&input).unwrap();
+        assert_eq!(encoded[0], 0xFF); // first block: full 254
+        assert_eq!(encoded[255], 0x02); // second block: 1 byte (code = 2)
+        assert_eq!(encoded.len(), 257); // 1 + 254 + 1 + 1
+    }
+
+    #[test]
+    fn encode_block_boundary_matches_corncobs() {
+        // Verify byte-for-byte match with corncobs at the critical 254-byte
+        // block boundary. Catches max_run being off by one.
+        for len in [254, 255, 256, 508, 512] {
+            let input: Vec<u8> = (0..len).map(|i| (i % 254 + 1) as u8).collect();
+            let ours = enc(&input).unwrap();
+            let mut their_buf = vec![0u8; corncobs::max_encoded_len(input.len())];
+            let their_len = corncobs::encode_buf(&input, &mut their_buf);
+            // corncobs appends a sentinel; strip it for comparison
+            assert_eq!(
+                &ours[..],
+                &their_buf[..their_len - 1],
+                "mismatch at len={len}"
+            );
+        }
+    }
+
     // ── Round-trip tests ────────────────────────────────────────
 
     #[test]
@@ -1035,6 +1078,29 @@ mod tests {
         let mut out = [0u8; 2];
         assert_eq!(decode(&[0x03, 0x11, 0x22], &mut out), Some(2));
         assert_eq!(out, [0x11, 0x22]);
+    }
+
+    #[test]
+    fn decode_zeros_dest_exact_size() {
+        // Decode all-zeros into an exact-fit buffer.
+        // Encoded: N+1 bytes of 0x01 → N bytes of 0x00.
+        // This catches `> dest.len()` mutated to `>= dest.len()`.
+        for n in [1, 2, 10, 64, 254, 255, 256] {
+            let encoded: Vec<u8> = vec![0x01; n + 1];
+            let mut out = vec![0u8; n]; // exact fit
+            assert_eq!(decode(&encoded, &mut out), Some(n), "failed at n={n}");
+            assert!(out.iter().all(|&b| b == 0x00), "wrong data at n={n}");
+        }
+    }
+
+    #[test]
+    fn decode_zeros_dest_one_too_small() {
+        // Buffer one byte too small for all-zeros decode.
+        for n in [2, 10, 64, 256] {
+            let encoded: Vec<u8> = vec![0x01; n + 1];
+            let mut out = vec![0u8; n - 1]; // one too small
+            assert_eq!(decode(&encoded, &mut out), None, "should fail at n={n}");
+        }
     }
 
     // ── Multi-block boundary tests ──────────────────────────────

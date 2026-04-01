@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2 — 2026-03-31
+
+### Testing
+
+- **Mutation testing passes clean** — 88 mutants tested, 59 caught, 0 missed.
+  Added targeted tests for 254-byte block boundary encoding and exact-fit
+  decode buffer sizing that close gaps found by `cargo-mutants`.
+- **111 tests** (was 106): added block-boundary interop, exact-fit decode zeros,
+  and too-small decode zeros tests.
+
 ## 0.3.1 — 2026-03-31
 
 ### Performance
