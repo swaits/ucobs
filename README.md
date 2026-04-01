@@ -295,8 +295,8 @@ affected — it uses a byte loop instead of `copy_from_slice`/memcpy.
   structural/algebraic properties, and boundary-region behavior
 - **Fuzz targets** — 3 `cargo-fuzz` harnesses (decode, round-trip, small-dest)
   for continuous coverage of edge cases
-- **Mutation testing** — `cargo-mutants` verifies that the test suite catches
-  injected bugs in every reachable code path
+- **Mutation testing** — `cargo-mutants` with 100% kill rate (59/59 viable
+  mutants caught; 30 more rejected by the type system)
 - **Boundary tests** — exhaustive coverage of 254/255-byte block boundaries,
   multi-block splits, buffer-exact fits, and off-by-one dest sizes
 - **Compile-time verification** — `const` assertions that validate encode

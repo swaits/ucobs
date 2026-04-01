@@ -167,6 +167,7 @@ const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
 }
 
 /// Fallback const copy for toolchains older than Rust 1.93.
+#[mutants::skip] // dead code under default features; tested via --features legacy-msrv
 #[inline(always)]
 #[cfg(feature = "legacy-msrv")]
 const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
@@ -842,7 +843,7 @@ mod tests {
         let encoded = enc(&input).unwrap();
         assert_eq!(encoded[0], 0xFF); // code byte for full 254-byte block
         assert_eq!(encoded.len(), 255); // 1 code byte + 254 data bytes
-        // Verify it round-trips
+                                        // Verify it round-trips
         let mut dec = vec![0u8; 256];
         let n = decode(&encoded, &mut dec).unwrap();
         assert_eq!(&dec[..n], &input[..]);

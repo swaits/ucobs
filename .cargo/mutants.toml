@@ -5,18 +5,13 @@ test_tool = "nextest"
 # are sufficient to catch mutants. Full proptests run separately via just test-unit.
 additional_cargo_test_args = ["-E", "not test(proptests)"]
 
-# Excluded mutants (false positives only):
+# False positives excluded:
 #
-# - legacy-msrv const_copy: dead code under default features, only compiled
-#   with --features legacy-msrv. Tested separately.
+# - `> 0` → `>= 0` or `< 0` on usize: tautological (usize always >= 0)
+# - `< 254` → `<= 254` in max_run: both branches yield 254 at the boundary
 #
-# - usize `> 0` → `>= 0` or `< 0`: tautological on usize (always >= 0).
-#
-# - `< 254` → `<= 254` in max_run: both branches yield 254 when remaining
-#   is exactly 254, so the mutation is a semantic no-op.
+# The legacy-msrv const_copy is excluded via #[mutants::skip] in source.
 exclude_re = [
-    "in const_copy",
-    "replace const_copy with \\(\\)",
     "replace > with < in encode",
     "replace > with >= in encode",
     "replace < with <= in encode",

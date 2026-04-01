@@ -27,6 +27,7 @@ all-features = true
 cobs = "0.5"
 corncobs = "0.1"
 iai-callgrind = "0.16"
+mutants = "0.0.4"
 proptest = "1"
 rand = "0.10"
 
