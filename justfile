@@ -4,8 +4,8 @@
 default:
     @just --list
 
-# run ALL quality gates (tests, clippy, fmt check, doc, fuzz, miri, mutants)
-test: test-unit test-clippy test-fmt test-doc test-fuzz test-miri test-mutants
+# run ALL quality gates (tests, clippy, fmt check, doc, deny, fuzz, miri, mutants)
+test: test-unit test-clippy test-fmt test-doc test-deny test-fuzz test-miri test-mutants
 
 # quick compile check (no tests)
 check:
@@ -14,11 +14,13 @@ check:
 # unit + integration + proptest tests (via nextest for parallelism)
 test-unit:
     cargo nextest run
+    cargo nextest run --features legacy-msrv
     cargo test --doc
 
 # clippy with all warnings as errors
 test-clippy:
     cargo clippy -- -D warnings
+    cargo clippy --features legacy-msrv -- -D warnings
 
 # check formatting
 test-fmt:
@@ -26,11 +28,16 @@ test-fmt:
 
 # doc build (catches broken doc links)
 test-doc:
-    cargo doc --no-deps
+    cargo doc --no-deps --all-features
+
+# license and advisory audit (requires cargo-deny)
+test-deny:
+    cargo deny check
 
 # fuzz all targets (60s each, requires nightly + cargo-fuzz)
 test-fuzz:
     cd fuzz && cargo +nightly fuzz run fuzz_decode -- -max_total_time=60
+    cd fuzz && cargo +nightly fuzz run fuzz_encode -- -max_total_time=60
     cd fuzz && cargo +nightly fuzz run fuzz_roundtrip -- -max_total_time=60
     cd fuzz && cargo +nightly fuzz run fuzz_small_dest -- -max_total_time=60
 

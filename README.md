@@ -8,8 +8,8 @@
 
 [Consistent Overhead Byte Stuffing](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing)
 (COBS) encodes arbitrary bytes so that `0x00` never appears in the output,
-allowing `0x00` to serve as an unambiguous frame delimiter. Overhead is exactly
-1 byte per 254 input bytes (worst case).
+allowing `0x00` to serve as an unambiguous frame delimiter. Overhead is at most
+1 byte per 254 input bytes, plus 1.
 
 ## Features
 
@@ -18,7 +18,7 @@ allowing `0x00` to serve as an unambiguous frame delimiter. Overhead is exactly
 - **100% spec-compliant** — Cheshire & Baker, IEEE/ACM Transactions on Networking, 1999
 - **Proven interoperability** — cross-validated against `corncobs`, `cobs`, and Python `cobs`
 - **Insanely tested** — canonical vectors, property-based tests, fuzz targets,
-  cross-crate interop, randomized payloads, and more coming
+  cross-crate interop, miri, mutation testing, randomized payloads
 
 ## Performance
 
@@ -64,16 +64,16 @@ combined). Run `just bench-size` to reproduce.
 
 | Crate          | `encode` | `decode` | Total |
 |----------------|--------:|---------:|------:|
-| μCOBS          |   429 B |    392 B | 821 B |
+| μCOBS          |   388 B |    392 B | 780 B |
 | `cobs` 0.5     |   282 B |    494 B | 776 B |
 | `corncobs` 0.1 |   375 B |    262 B | 637 B |
 
-All three crates are under 1 KB. μCOBS is the largest because safe
-`const fn` encoding with `copy_from_slice`/memcpy requires `split_at`
-bounds checks that generate panic paths — the cost of combining
-compile-time safety with runtime speed. Embedded users targeting size
-over speed can build with `opt-level = "s"` which reduces μCOBS to
-~738 B.
+All three crates are under 1 KB. μCOBS and `cobs` are nearly tied;
+`corncobs` is the smallest. μCOBS's safe `const fn` encoding with
+`copy_from_slice`/memcpy requires `split_at` bounds checks that
+generate panic paths — the cost of combining compile-time safety with
+runtime speed. Embedded users targeting size over speed can build with
+`opt-level = "s"` to shrink further.
 
 ### Crate properties
 
@@ -105,7 +105,7 @@ over speed can build with `opt-level = "s"` which reduces μCOBS to
 | Dead-simple API (3 functions) | **yes** | yes | more surface area |
 | In-place / streaming encode | no | no | **yes** |
 | `no_std` + zero-alloc by default | **yes** | opt-in | **yes** |
-| Thorough test suite | **111 tests, fuzz, proptest, mutants** | basic | basic |
+| Thorough test suite | **111 tests, fuzz, proptest, miri, mutants** | basic | basic |
 
 **Choose μCOBS** if you want the smallest, most auditable COBS implementation
 with a `const fn` encoder, a dead-simple 3-function API, and leading or tied

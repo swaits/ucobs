@@ -1,4 +1,7 @@
 [tools]
-"cargo:cargo-nextest" = "latest"
+rust = "1.93"
+"cargo:cargo-deny" = "latest"
+"cargo:cargo-fuzz" = "latest"
 "cargo:cargo-mutants" = "latest"
+"cargo:cargo-nextest" = "latest"
 "cargo:iai-callgrind-runner" = "latest"

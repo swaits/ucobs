@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.3.4 — 2026-04-01
+
+### Changed
+
+- **Encode shrunk by 41 bytes** — simplified branch structure in encoder exit
+  path. 388 B encode, 392 B decode, 780 B total (was 821 B). Zero benchmark
+  regressions.
+- **Clarified decode invariant** — added inline comment explaining the subtle
+  trailing-0x01 COBS rule (end-of-data marker vs zero byte).
+- **Clippy cleanup** — `saturating_sub` in proptest (cosmetic, test-only).
+
+### Added
+
+- **GitHub Actions CI** — tests on stable + MSRV 1.93 + 1.83/legacy-msrv,
+  clippy, fmt, doc, and cargo-deny.
+- **`cargo-deny` integration** — `deny.toml` with permissive-only license
+  policy, advisory checks, source auditing. Added `just test-deny` gate.
+- **Encode-only fuzz target** — `fuzz_encode` exercises buffer-too-small
+  paths and validates output properties independently of decode.
+- **Feature coverage** — `just test-unit` and `just test-clippy` now test
+  both default and `legacy-msrv` features. `just test-doc` builds with
+  `--all-features`.
+
+### Fixed
+
+- **README accuracy** — overhead description changed from "exactly" to
+  "at most ... plus 1", added miri to test mentions, updated code size
+  numbers.
+- **CLAUDE.md rewrite** — updated stale API signatures, LOC count, roadmap,
+  dev-deps list, and development commands.
+
 ## 0.3.3 — 2026-04-01
 
 ### Fixed

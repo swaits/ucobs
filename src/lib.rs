@@ -256,14 +256,10 @@ pub const fn encode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
         }
         si += run;
 
-        if full_block {
-            if si >= src.len() {
-                break;
-            }
-        } else {
-            if si >= src.len() {
-                break;
-            }
+        if si >= src.len() {
+            break;
+        }
+        if !full_block {
             si += 1; // skip the zero byte
         }
     }
@@ -315,6 +311,9 @@ pub fn decode(src: &[u8], dest: &mut [u8]) -> Option<usize> {
                 src = rest;
                 count += 1;
             }
+            // If more data follows, every 0x01 represents a zero byte.
+            // If the stream ends here, the final 0x01 is the end-of-data
+            // marker, not a zero — so emit one fewer.
             let zeros = if !src.is_empty() { count } else { count - 1 };
             if di + zeros > dest.len() {
                 return None;
@@ -1259,7 +1258,7 @@ mod proptests {
             shrink in 1usize..256,
         ) {
             let max = max_encoded_len(data.len());
-            let dest_size = if shrink >= max { 0 } else { max - shrink };
+            let dest_size = max.saturating_sub(shrink);
             let mut buf = vec![0u8; dest_size];
             let _ = encode(&data, &mut buf); // may return None, must not panic
         }
