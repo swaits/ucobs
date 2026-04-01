@@ -1,14 +1,15 @@
 # Changelog
 
-## 0.3.2 — 2026-03-31
+## 0.3.2 — 2026-04-01
 
 ### Testing
 
-- **Mutation testing passes clean** — 88 mutants tested, 59 caught, 0 missed.
-  Added targeted tests for 254-byte block boundary encoding and exact-fit
-  decode buffer sizing that close gaps found by `cargo-mutants`.
-- **111 tests** (was 106): added block-boundary interop, exact-fit decode zeros,
-  and too-small decode zeros tests.
+- **Mutation testing: 100% kill rate** — 89 mutants tested, 59 caught, 30
+  unviable (type system rejects them), 0 missed. Uses `cargo-mutants` v27
+  with nextest. Added `mutants` crate for `#[mutants::skip]` annotations.
+- **111 tests** (was 106): added block-boundary interop verification against
+  corncobs, exact-fit and too-small decode buffer sizing for the batch zero
+  path.
 
 ## 0.3.1 — 2026-03-31
 

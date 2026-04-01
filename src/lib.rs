@@ -167,6 +167,7 @@ const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
 }
 
 /// Fallback const copy for toolchains older than Rust 1.93.
+#[mutants::skip] // dead code under default features; tested via --features legacy-msrv
 #[inline(always)]
 #[cfg(feature = "legacy-msrv")]
 const fn const_copy(dest: &mut [u8], di: usize, src: &[u8], n: usize) {
